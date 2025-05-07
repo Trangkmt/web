@@ -355,12 +355,13 @@ def create_app():
     
     return app
 
+app = create_app()
+
 if __name__ == '__main__':
-    # Tạo các thư mục cần thiết
     try:
         os.makedirs('logs', exist_ok=True)
     except Exception as e:
         logger.error(f"Lỗi khi tạo thư mục: {str(e)}")
     
-    app = create_app()
     app.run(debug=True)
+
