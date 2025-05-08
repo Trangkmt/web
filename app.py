@@ -21,6 +21,8 @@ except ImportError:
     # Triển khai dự phòng dựa trên models.py khi không tìm thấy utils.db
     from pymongo import MongoClient
     import os
+    import time
+    from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
     
     def get_mongo_client():
         """Lấy MongoDB client sử dụng models.py làm mẫu
@@ -29,31 +31,45 @@ except ImportError:
         - Tạo kết nối đến MongoDB Atlas với cấu hình tối ưu
         - Xử lý lỗi và ghi log thích hợp
         - Kiểm tra kết nối bằng lệnh ping
+        - Thử kết nối lại nếu thất bại lần đầu
         
         Returns:
             MongoClient: Đối tượng kết nối MongoDB, hoặc None nếu có lỗi
         """
-        try:
-            uri = os.environ.get('MONGO_URI', "mongodb+srv://kiwi:trang%402005@film-users.10h2w59.mongodb.net/?retryWrites=true&w=majority")
-            
-            client = MongoClient(
-                uri,
-                serverSelectionTimeoutMS=5000,
-                connectTimeoutMS=5000,
-                socketTimeoutMS=10000,
-                maxPoolSize=50,
-                retryWrites=True,
-                ssl=True,
-                tlsAllowInvalidCertificates=True
-            )
-            
-            # Kiểm tra kết nối ngay lập tức
-            client.admin.command('ping')
-            logging.info("[THÀNH CÔNG] Kết nối MongoDB Atlas thành công!")
-            return client
-        except Exception as e:
-            logging.error(f"[LỖI] Lỗi kết nối MongoDB Atlas: {str(e)}")
-            return None
+        max_retries = 3
+        retry_delay = 2
+        
+        for attempt in range(1, max_retries + 1):
+            try:
+                uri = os.environ.get('MONGO_URI', "mongodb+srv://kiwi:trang%402005@film-users.10h2w59.mongodb.net/?retryWrites=true&w=majority")
+                
+                client = MongoClient(
+                    uri,
+                    serverSelectionTimeoutMS=15000,    # Tăng từ 5s lên 15s
+                    connectTimeoutMS=15000,            # Tăng từ 5s lên 15s
+                    socketTimeoutMS=30000,             # Tăng từ 10s lên 30s
+                    maxPoolSize=50,
+                    retryWrites=True,
+                    ssl=True,
+                    tlsAllowInvalidCertificates=True
+                )
+                
+                # Kiểm tra kết nối với timeout dài hơn
+                client.admin.command('ping', serverSelectionTimeoutMS=10000)
+                logging.info("[THÀNH CÔNG] Kết nối MongoDB Atlas thành công!")
+                return client
+            except (ConnectionFailure, ServerSelectionTimeoutError) as e:
+                logging.warning(f"[CẢNH BÁO] Lần thử {attempt}/{max_retries} kết nối MongoDB Atlas thất bại: {str(e)}")
+                if attempt < max_retries:
+                    logging.info(f"Đợi {retry_delay} giây trước khi thử lại...")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # Tăng thời gian chờ theo cấp số nhân
+                else:
+                    logging.error(f"[LỖI] Không thể kết nối MongoDB Atlas sau {max_retries} lần thử: {str(e)}")
+                    return None
+            except Exception as e:
+                logging.error(f"[LỖI] Lỗi kết nối MongoDB Atlas: {str(e)}")
+                return None
     
     def get_db_name():
         """Lấy tên cơ sở dữ liệu
@@ -82,22 +98,39 @@ except ImportError:
         try:
             # Tạo index cơ bản với xử lý lỗi
             try:
+                # Create regular indexes first
                 db.films.create_index("id", unique=True)
                 db.films.create_index("title")
-                
-                # Index tìm kiếm văn bản với trọng số mặc định để tránh xung đột
-                db.films.create_index([("title", "text"), ("description", "text")], 
-                                   default_language="english")
-                
                 db.genres.create_index("slug", unique=True)
                 db.genres.create_index("id", unique=True)
-                
                 db.users.create_index("username", unique=True)
-                
                 db.favorites.create_index([("user_id", 1), ("film_id", 1)], unique=True)
                 db.favorites.create_index("user_id")
+                db.favorites.create_index("film_id")
                 
-                logging.info("Index MongoDB được tạo thành công")
+                logging.info("Regular indexes created successfully")
+                
+                # Create text index separately with explicit weights and error handling
+                try:
+                    # First, check if the text index already exists
+                    index_info = db.films.index_information()
+                    text_index_exists = any('text' in v.get('key', []) for v in index_info.values())
+                    
+                    if not text_index_exists:
+                        # Create the text index with explicit weights
+                        db.films.create_index(
+                            [("title", "text"), ("description", "text")],
+                            weights={"title": 10, "description": 5},
+                            default_language="english",
+                            name="film_text_search"
+                        )
+                        logging.info("Text search index created successfully")
+                    else:
+                        logging.info("Text search index already exists")
+                except Exception as text_index_error:
+                    logging.error(f"Failed to create text search index: {str(text_index_error)}")
+                    # Continue execution even if text index creation fails
+                
                 return True
             except Exception as e:
                 logging.warning(f"Một số index có thể đã tồn tại: {str(e)}")
@@ -172,21 +205,39 @@ def get_db_connection():
     """
     try:
         from pymongo import MongoClient
+        from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
+        import time
+        
         uri = os.environ.get('MONGO_URI', "mongodb+srv://kiwi:trang%402005@film-users.10h2w59.mongodb.net/?retryWrites=true&w=majority")
         dbname = os.environ.get('MONGO_DBNAME', "film-users")
         
-        client = MongoClient(
-            uri,
-            serverSelectionTimeoutMS=5000,
-            connectTimeoutMS=5000,
-            socketTimeoutMS=10000,
-            maxPoolSize=50,
-            ssl=True,
-            tlsAllowInvalidCertificates=True,
-            retryWrites=True
-        )
-        db = client[dbname]
-        return client, db
+        max_retries = 2
+        retry_delay = 3
+        
+        for attempt in range(1, max_retries + 1):
+            try:
+                client = MongoClient(
+                    uri,
+                    serverSelectionTimeoutMS=15000,    # Tăng từ 5s lên 15s
+                    connectTimeoutMS=15000,            # Tăng từ 5s lên 15s  
+                    socketTimeoutMS=30000,             # Tăng từ 10s lên 30s
+                    maxPoolSize=50,
+                    ssl=True,
+                    tlsAllowInvalidCertificates=True,
+                    retryWrites=True
+                )
+                # Thêm timeout dài hơn cho kiểm tra kết nối
+                client.admin.command('ping', serverSelectionTimeoutMS=10000)
+                db = client[dbname]
+                return client, db
+            except (ConnectionFailure, ServerSelectionTimeoutError) as e:
+                logger.warning(f"[CẢNH BÁO] Lần thử {attempt}/{max_retries} kết nối MongoDB Atlas thất bại: {str(e)}")
+                if attempt < max_retries:
+                    logger.info(f"Đợi {retry_delay} giây trước khi thử lại...")
+                    time.sleep(retry_delay)
+                else:
+                    logger.error(f"[LỖI] Không thể kết nối MongoDB Atlas sau {max_retries} lần thử: {str(e)}")
+                    return None, None
     except Exception as e:
         logger.error(f"Lỗi kết nối cơ sở dữ liệu: {str(e)}")
         return None, None
@@ -338,18 +389,20 @@ def create_app():
             # Khởi tạo index
             init_mongo_indexes(db)
             
-            # Tạo index cho favorites
+            # Tạo index cho favorites với xử lý lỗi tốt hơn
             try:
                 db.favorites.create_index([("user_id", 1), ("film_id", 1)], unique=True)
                 db.favorites.create_index("user_id")
                 db.favorites.create_index("film_id")
                 logger.info("Index favorites được tạo thành công")
             except Exception as e:
-                logger.error(f"Lỗi khi tạo index favorites: {str(e)}")
+                logger.warning(f"Lỗi khi tạo index favorites (có thể index đã tồn tại): {str(e)}")
             
             # Đóng kết nối
             client.close()
             logger.info(f"Kết nối MongoDB được khởi tạo cho cơ sở dữ liệu: {db_name}")
+        else:
+            logger.warning("Không thể khởi tạo kết nối MongoDB, ứng dụng sẽ chạy trong chế độ hạn chế")
     except Exception as e:
         logger.error(f"Lỗi khi khởi tạo MongoDB: {str(e)}")
     

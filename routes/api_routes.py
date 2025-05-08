@@ -80,35 +80,3 @@ def register_api_routes(app):
         except Exception as e:
             logger.error(f"Error in remove_favorite route: {str(e)}")
             return jsonify({'success': False, 'message': 'An error occurred'}), 500
-
-    @app.route('/api/add-watch-later', methods=['POST'])
-    @api_login_required
-    def add_watch_later():
-        """Add a film to watch later list"""
-        try:
-            user_id = session.get('user_id')
-            film_id = request.json.get('film_id')
-            
-            if not film_id:
-                return jsonify({'success': False, 'message': 'Film ID is required'}), 400
-            
-            # Add to database
-            from pymongo import MongoClient
-            import os
-            
-            # Connect to MongoDB
-            uri = os.environ.get('MONGO_URI', "mongodb+srv://kiwi:trang%402005@film-users.10h2w59.mongodb.net/?retryWrites=true&w=majority")
-            dbname = os.environ.get('MONGO_DBNAME', "film-users")
-            client = MongoClient(uri)
-            db = client[dbname]
-            
-            # Add to user's watch later list
-            db.users.update_one(
-                {"_id": user_id},
-                {"$addToSet": {"watch_later": film_id}}
-            )
-            
-            return jsonify({'success': True, 'message': 'Film added to watch later list'})
-        except Exception as e:
-            logger.error(f"Error in add_watch_later route: {str(e)}")
-            return jsonify({'success': False, 'message': 'An error occurred'}), 500

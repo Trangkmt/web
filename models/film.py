@@ -188,7 +188,7 @@ class Film:
     
     @staticmethod
     def search(query, limit=20, skip=0):
-        """Search films with optimized query strategy"""
+        """Search films with optimized query strategy and fallback"""
         try:
             # Projection to limit fields for better performance
             projection = {
@@ -198,14 +198,30 @@ class Film:
             
             # Use text search for longer queries (more efficient)
             if len(query) > 3:
-                search_query = {"$text": {"$search": query}}
-                sort_criteria = [("score", {"$meta": "textScore"})]
-                projection["score"] = {"$meta": "textScore"}
-                
-                films = films_collection.find(
-                    search_query, 
-                    projection
-                ).sort(sort_criteria).skip(skip).limit(limit)
+                try:
+                    search_query = {"$text": {"$search": query}}
+                    projection_with_score = dict(projection)
+                    projection_with_score["score"] = {"$meta": "textScore"}
+                    
+                    films = films_collection.find(
+                        search_query, 
+                        projection_with_score
+                    ).sort([("score", {"$meta": "textScore"})]).skip(skip).limit(limit)
+                    
+                    # Convert to list to execute the query and catch any errors
+                    films_list = list(films)
+                    return [serialize_id(film) for film in films_list]
+                except Exception as text_search_error:
+                    print(f"Text search failed, falling back to regex: {str(text_search_error)}")
+                    # Fall back to regex search if text search fails
+                    search_query = {
+                        "$or": [
+                            {"title": {"$regex": query, "$options": "i"}},
+                            {"description": {"$regex": query, "$options": "i"}}
+                        ]
+                    }
+                    films = films_collection.find(search_query, projection).skip(skip).limit(limit)
+                    return [serialize_id(film) for film in films]
             else:
                 # Use regex for short queries
                 search_query = {
@@ -215,8 +231,7 @@ class Film:
                     ]
                 }
                 films = films_collection.find(search_query, projection).skip(skip).limit(limit)
-                
-            return [serialize_id(film) for film in films]
+                return [serialize_id(film) for film in films]
         except Exception as e:
             print(f"Error in Film.search(): {str(e)}")
             return []
