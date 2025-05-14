@@ -349,7 +349,7 @@ async function openEditModal(filmId) {
             checkbox.checked = film.genre_ids && film.genre_ids.includes(parseInt(checkbox.value));
         });
         document.getElementById('filmEpisodes').value = film.episode_count || '';
-        document.getElementById('filmReleaseDate').value = film.release_year || '';
+        document.getElementById('filmReleaseYear').value = film.release_year || '';
         document.getElementById('filmStatus').value = film.status || 'single';
         document.getElementById('filmPosterUrl').value = film.poster_path || '';
         document.getElementById('filmSourceFilm').value = film.source_film || '';
@@ -407,7 +407,7 @@ async function saveFilm(event) {
         const filmId = document.getElementById('filmId').value;
         const title = document.getElementById('filmTitle').value;
         const description = document.getElementById('filmDescription').value;
-        const release_year = document.getElementById('filmReleaseDate').value;
+        const release_year = document.getElementById('filmReleaseYear').value;
         const episode_count = parseInt(document.getElementById('filmEpisodes').value) || 1;
         const status = document.getElementById('filmStatus').value;
         const poster_path = document.getElementById('filmPosterUrl').value || '/static/images/placeholder.jpg';
