@@ -154,7 +154,7 @@ function displayFilms(films) {
     const filmsToDisplay = films.slice(startIndex, endIndex);
 
     filmsToDisplay.forEach(film => {
-        const genres = film.genres.map(g => g.name).join(', '); // Hiển thị đầy đủ thể loại
+        const genres = film.genres.map(g => g.name).join(', ');
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>${film.id}</td>
@@ -164,7 +164,7 @@ function displayFilms(films) {
             </td>
             <td>${genres}</td>
             <td>${film.episode_count || 'N/A'}</td>
-            <td>${new Date(film.release_year).getFullYear()}</td>
+            <td>${film.release_year || 'N/A'}</td>
             <td><span class="status-badge ${film.status === 'single' ? 'status-single' : 'status-series'}">${film.status === 'single' ? 'Phim lẻ' : 'Phim bộ'}</span></td>
             <td class="action-buttons">
                 <button class="action-btn edit-btn" data-id="${film.id}"><i class="fas fa-edit"></i></button>
@@ -353,7 +353,7 @@ async function openEditModal(filmId) {
         document.getElementById('filmStatus').value = film.status || 'single';
         document.getElementById('filmPosterUrl').value = film.poster_path || '';
         document.getElementById('filmSourceFilm').value = film.source_film || '';
-        document.getElementById('filmDesciption').value = film.description|| '';
+        document.getElementById('filmDescription').value = film.description || '';
         
         // Update genre display
         updateSelectedGenresDisplay();
