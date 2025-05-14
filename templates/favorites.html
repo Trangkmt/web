@@ -50,25 +50,6 @@
             </div>
             {% endif %}
         </section>
-        
-        <!-- Top Films Sidebar -->
-        <div class="top-films-sidebar">
-            <h2>TOP PHIM</h2>
-            <div class="top-films-list">
-                {% for film in top_films %}
-                <a href="{{ url_for('film_details', film_id=film.id) }}" class="top-film-item">
-                    <div class="top-film-thumbnail" {% if film.poster_path|default(film.poster, true) and film.poster_path|default(film.poster, true)|length > 0 %}style="background-image: url('{{ film.poster_path|default(film.poster, true) }}'); background-size: cover; background-position: center;"{% else %}style="background-color: #222; border: 2px solid #444;"{% endif %}></div>
-                    <div class="top-film-info">
-                        <div class="top-film-title">{{ film.title }}</div>
-                        <div class="top-film-meta">
-                            <span class="quality">Vietsub - HD</span>
-                            <span class="views">{{ film.views if film.views is defined else '1K+' }} lượt xem</span>
-                        </div>
-                    </div>
-                </a>
-                {% endfor %}
-            </div>
-        </div>
     </div>
 </div>
 {% endblock %}

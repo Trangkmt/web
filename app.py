@@ -14,28 +14,28 @@ from routes.favorite_film import favorite_bp
 # Import model Favorite
 from models.favorite import Favorite
 
+# Cấu hình logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('logs/app.log', mode='a', encoding='utf-8', delay=True),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
 # Thử import tiện ích cơ sở dữ liệu
 try:
     from utils.db import get_mongo_client, get_db_name, init_mongo_indexes, migrate_users_without_id
 except ImportError:
     # Triển khai dự phòng dựa trên models.py khi không tìm thấy utils.db
     from pymongo import MongoClient
-    import os
     import time
     from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
     
     def get_mongo_client():
-        """Lấy MongoDB client sử dụng models.py làm mẫu
-        
-        Chức năng:
-        - Tạo kết nối đến MongoDB Atlas với cấu hình tối ưu
-        - Xử lý lỗi và ghi log thích hợp
-        - Kiểm tra kết nối bằng lệnh ping
-        - Thử kết nối lại nếu thất bại lần đầu
-        
-        Returns:
-            MongoClient: Đối tượng kết nối MongoDB, hoặc None nếu có lỗi
-        """
+        """Lấy MongoDB client sử dụng models.py làm mẫu"""
         max_retries = 3
         retry_delay = 2
         
@@ -45,16 +45,15 @@ except ImportError:
                 
                 client = MongoClient(
                     uri,
-                    serverSelectionTimeoutMS=15000,    # Tăng từ 5s lên 15s
-                    connectTimeoutMS=15000,            # Tăng từ 5s lên 15s
-                    socketTimeoutMS=30000,             # Tăng từ 10s lên 30s
+                    serverSelectionTimeoutMS=15000,
+                    connectTimeoutMS=15000,
+                    socketTimeoutMS=30000,
                     maxPoolSize=50,
                     retryWrites=True,
                     ssl=True,
                     tlsAllowInvalidCertificates=True
                 )
                 
-                # Kiểm tra kết nối với timeout dài hơn
                 client.admin.command('ping', serverSelectionTimeoutMS=10000)
                 logging.info("[THÀNH CÔNG] Kết nối MongoDB Atlas thành công!")
                 return client
@@ -63,7 +62,7 @@ except ImportError:
                 if attempt < max_retries:
                     logging.info(f"Đợi {retry_delay} giây trước khi thử lại...")
                     time.sleep(retry_delay)
-                    retry_delay *= 2  # Tăng thời gian chờ theo cấp số nhân
+                    retry_delay *= 2
                 else:
                     logging.error(f"[LỖI] Không thể kết nối MongoDB Atlas sau {max_retries} lần thử: {str(e)}")
                     return None
@@ -72,31 +71,12 @@ except ImportError:
                 return None
     
     def get_db_name():
-        """Lấy tên cơ sở dữ liệu
-        
-        Returns:
-            str: Tên cơ sở dữ liệu
-        """
+        """Lấy tên cơ sở dữ liệu"""
         return "film-users"
     
     def init_mongo_indexes(db):
-        """Khởi tạo index MongoDB sử dụng cách tiếp cận đơn giản hóa
-        
-        Chức năng:
-        - Tạo các index cơ bản với xử lý lỗi
-        - Index cho phim: id, title, text search
-        - Index cho thể loại: slug, id
-        - Index cho người dùng: username
-        - Index cho yêu thích: user_id+film_id, user_id
-        
-        Args:
-            db: Đối tượng cơ sở dữ liệu MongoDB
-            
-        Returns:
-            bool: True nếu thành công, False nếu thất bại
-        """
+        """Khởi tạo index MongoDB"""
         try:
-            # Tạo index cơ bản với xử lý lỗi
             try:
                 # Create regular indexes first
                 db.films.create_index("id", unique=True)
@@ -111,31 +91,23 @@ except ImportError:
                 logging.info("Regular indexes created successfully")
                 
                 # Check for existing text index with improved handling
-                try:
-                    # First, check if any text index already exists
-                    index_info = db.films.index_information()
-                    # Ensure we thoroughly check for text index existence
-                    text_index_exists = False
-                    for index_name, index_info in index_info.items():
-                        if 'weights' in index_info:  # Text indexes have weights
-                            text_index_exists = True
-                            logging.info(f"Existing text index found: {index_name}")
-                            break
-                    
-                    if not text_index_exists:
-                        # Only create if no text index exists
-                        db.films.create_index(
-                            [("title", "text"), ("description", "text")],
-                            default_language="english"  # Don't specify custom weights or name
-                        )
-                        logging.info("Text search index created successfully")
-                    else:
-                        # Text index already exists, don't try to recreate with different options
-                        logging.info("Text search index already exists - using existing index")
-                except Exception as text_index_error:
-                    # More specific error message for diagnosis
-                    logging.error(f"Failed to handle text search index: {str(text_index_error)}")
-                    # Continue execution even if text index handling fails
+                index_info = db.films.index_information()
+                text_index_exists = False
+                for index_name, index_info in index_info.items():
+                    if 'weights' in index_info:  # Text indexes have weights
+                        text_index_exists = True
+                        logging.info(f"Existing text index found: {index_name}")
+                        break
+                
+                if not text_index_exists:
+                    # Only create if no text index exists
+                    db.films.create_index(
+                        [("title", "text"), ("description", "text")],
+                        default_language="english"
+                    )
+                    logging.info("Text search index created successfully")
+                else:
+                    logging.info("Text search index already exists - using existing index")
                 
                 return True
             except Exception as e:
@@ -148,18 +120,15 @@ except ImportError:
     def migrate_users_without_id(db):
         """Gán ID tuần tự cho người dùng không có ID"""
         try:
-            # Tìm người dùng không có trường ID
             users_without_id = list(db.users.find({"id": {"$exists": False}}))
             
             if not users_without_id:
                 logging.info("Không tìm thấy người dùng nào không có ID")
                 return True
                 
-            # Tìm ID cao nhất hiện có và cập nhật người dùng
             highest_user = db.users.find_one(sort=[("id", -1)])
             next_id = highest_user.get("id", 0) + 1 if highest_user else 1
             
-            # Bulk update để cải thiện hiệu suất
             for user in users_without_id:
                 db.users.update_one(
                     {"_id": user["_id"]}, 
@@ -173,67 +142,64 @@ except ImportError:
             logging.error(f"Lỗi khi di chuyển người dùng không có ID: {str(e)}")
             return False
 
-# Cấu hình logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('logs/app.log', mode='a', encoding='utf-8', delay=True),
-        logging.StreamHandler()
-    ]
-)
-
-logger = logging.getLogger(__name__)
-
-# Hàm kết nối MongoDB
+# Hàm kết nối MongoDB - Sử dụng get_mongo_client để tránh code trùng lặp
 def get_db_connection():
-    """Lấy kết nối cơ sở dữ liệu MongoDB
-    
-    Chức năng:
-    - Tạo kết nối đến MongoDB Atlas với cấu hình tối ưu
-    - Xử lý lỗi và ghi log thích hợp
-    
-    Returns:
-        tuple: (MongoClient, Database) hoặc (None, None) nếu có lỗi
-    """
+    """Lấy kết nối cơ sở dữ liệu MongoDB"""
     try:
-        from pymongo import MongoClient
-        from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
-        import time
-        
-        uri = os.environ.get('MONGO_URI', "mongodb+srv://kiwi:trang%402005@film-users.10h2w59.mongodb.net/?retryWrites=true&w=majority")
-        dbname = os.environ.get('MONGO_DBNAME', "film-users")
-        
-        max_retries = 2
-        retry_delay = 3
-        
-        for attempt in range(1, max_retries + 1):
-            try:
-                client = MongoClient(
-                    uri,
-                    serverSelectionTimeoutMS=15000,    # Tăng từ 5s lên 15s
-                    connectTimeoutMS=15000,            # Tăng từ 5s lên 15s  
-                    socketTimeoutMS=30000,             # Tăng từ 10s lên 30s
-                    maxPoolSize=50,
-                    ssl=True,
-                    tlsAllowInvalidCertificates=True,
-                    retryWrites=True
-                )
-                # Thêm timeout dài hơn cho kiểm tra kết nối
-                client.admin.command('ping', serverSelectionTimeoutMS=10000)
-                db = client[dbname]
-                return client, db
-            except (ConnectionFailure, ServerSelectionTimeoutError) as e:
-                logger.warning(f"[CẢNH BÁO] Lần thử {attempt}/{max_retries} kết nối MongoDB Atlas thất bại: {str(e)}")
-                if attempt < max_retries:
-                    logger.info(f"Đợi {retry_delay} giây trước khi thử lại...")
-                    time.sleep(retry_delay)
-                else:
-                    logger.error(f"[LỖI] Không thể kết nối MongoDB Atlas sau {max_retries} lần thử: {str(e)}")
-                    return None, None
+        client = get_mongo_client()
+        if client is None:
+            return None, None
+            
+        dbname = get_db_name()
+        db = client[dbname]
+        return client, db
     except Exception as e:
         logger.error(f"Lỗi kết nối cơ sở dữ liệu: {str(e)}")
         return None, None
+
+# Hàm trợ giúp kiểm tra trạng thái đăng nhập
+def login_required(redirect_url='login'):
+    if 'user_id' not in session:
+        flash('Vui lòng đăng nhập để xem trang này', 'error')
+        return redirect(url_for(redirect_url))
+    return None
+
+# Hàm trợ giúp lấy dữ liệu người dùng
+def get_user_data(user_id):
+    client, db = get_db_connection()
+    user_data = {
+        'username': session.get('username', 'User'),
+        'user_id': user_id,
+        'registerDate': datetime.now()
+    }
+    
+    try:
+        # Thử như ObjectId
+        try:
+            user = db.users.find_one({'_id': ObjectId(user_id)})
+        except:
+            try:
+                # Thử như ID số
+                user_id_int = int(user_id)
+                user = db.users.find_one({'id': user_id_int})
+            except:
+                user = None
+        
+        if user:
+            user_data = {
+                'username': user.get('username', 'User'),
+                'id': str(user.get('_id')),
+                'fullName': user.get('fullName', ''),
+                'registerDate': user.get('registerDate', datetime.now()),
+                'role': user.get('role', '')
+            }
+    except Exception as e:
+        logger.error(f"Lỗi khi lấy dữ liệu người dùng: {str(e)}")
+    finally:
+        if client:
+            client.close()
+            
+    return user_data
 
 def create_app():
     """Tạo và cấu hình ứng dụng Flask"""
@@ -248,51 +214,7 @@ def create_app():
     register_user_routes(app)
     app.register_blueprint(favorite_bp)
     
-    # Hàm trợ giúp kiểm tra trạng thái đăng nhập
-    def login_required(redirect_url='login'):
-        if 'user_id' not in session:
-            flash('Vui lòng đăng nhập để xem trang này', 'error')
-            return redirect(url_for(redirect_url))
-        return None
-    
-    # Hàm trợ giúp lấy dữ liệu người dùng
-    def get_user_data(user_id):
-        client, db = get_db_connection()
-        user_data = {
-            'username': session.get('username', 'User'),
-            'user_id': user_id,
-            'registerDate': datetime.now()
-        }
-        
-        try:
-            # Thử như ObjectId
-            try:
-                user = db.users.find_one({'_id': ObjectId(user_id)})
-            except:
-                try:
-                    # Thử như ID số
-                    user_id_int = int(user_id)
-                    user = db.users.find_one({'id': user_id_int})
-                except:
-                    user = None
-            
-            if user:
-                user_data = {
-                    'username': user.get('username', 'User'),
-                    'id': str(user.get('_id')),
-                    'fullName': user.get('fullName', ''),
-                    'registerDate': user.get('registerDate', datetime.now()),
-                    'role': user.get('role', '')
-                }
-        except Exception as e:
-            logger.error(f"Lỗi khi lấy dữ liệu người dùng: {str(e)}")
-        finally:
-            if client:
-                client.close()
-                
-        return user_data
-    
-    # Trang tài khoản người dùng với danh sách yêu thích
+    # Trang tài khoản người dùng
     @app.route('/account')
     def account():
         login_check = login_required()
@@ -305,69 +227,18 @@ def create_app():
         
         return render_template('account.html', favorites=favorites, user=user_data)
     
-    # Trang tất cả yêu thích
-    @app.route('/favorites')
-    def favorites():
-        login_check = login_required('home')
-        if login_check:
-            return login_check
-        
-        user_id = session.get('user_id')
-        films = Favorite.get_user_favorite_films(user_id)
-        
-        # Lấy top films từ danh sách favorites
-        top_films = films[:5] if len(films) >= 5 else films
-        
-        # Phân trang
-        items_per_page = 12
-        total_films = len(films)
-        total_pages = (total_films // items_per_page) + (1 if total_films % items_per_page != 0 else 0)
-        
-        page = request.args.get('page', 1, type=int)
-        start = (page - 1) * items_per_page
-        end = start + items_per_page
-        films_on_page = films[start:end]
-        
-        return render_template('favorites.html', 
-                              films=films_on_page,
-                              total_pages=total_pages,
-                              current_page=page,
-                              top_films=top_films)
-    
-    # API routes cho yêu thích
-    @app.route('/user/favorites/check/<film_id>')
-    def check_favorite(film_id):
-        if 'user_id' not in session:
-            return jsonify({"isFavorite": False})
-        
-        user_id = session.get('user_id')
-        is_favorite = Favorite.is_favorite(user_id, film_id)
-        return jsonify({"isFavorite": is_favorite})
-    
-    @app.route('/user/favorites/toggle/<film_id>', methods=['POST'])
-    def toggle_favorite(film_id):
-        if 'user_id' not in session:
-            return jsonify({'error': 'Authentication required'}), 401
-        
-        user_id = session.get('user_id')
-        result, status_code = Favorite.toggle_favorite(user_id, film_id)
-        return jsonify(result), status_code
-    
-    @app.route('/user/favorites')
-    def get_favorites_json():
-        if 'user_id' not in session:
-            return jsonify([])
-        
-        user_id = session.get('user_id')
-        films = Favorite.get_user_favorite_films(user_id)
-        return jsonify(films)
-    
     # Import debug routes trong môi trường phát triển
     if app.config.get('ENV') == 'development':
         from routes.debug_routes import register_debug_routes
         register_debug_routes(app)
     
     # Khởi tạo kết nối và index MongoDB
+    _initialize_database()
+    
+    return app
+
+def _initialize_database():
+    """Khởi tạo cơ sở dữ liệu và các index cần thiết"""
     try:
         # Lấy MongoDB client
         client = get_mongo_client()
@@ -382,15 +253,6 @@ def create_app():
             # Khởi tạo index
             init_mongo_indexes(db)
             
-            # Tạo index cho favorites với xử lý lỗi tốt hơn
-            try:
-                db.favorites.create_index([("user_id", 1), ("film_id", 1)], unique=True)
-                db.favorites.create_index("user_id")
-                db.favorites.create_index("film_id")
-                logger.info("Index favorites được tạo thành công")
-            except Exception as e:
-                logger.warning(f"Lỗi khi tạo index favorites (có thể index đã tồn tại): {str(e)}")
-            
             # Đóng kết nối
             client.close()
             logger.info(f"Kết nối MongoDB được khởi tạo cho cơ sở dữ liệu: {db_name}")
@@ -398,8 +260,6 @@ def create_app():
             logger.warning("Không thể khởi tạo kết nối MongoDB, ứng dụng sẽ chạy trong chế độ hạn chế")
     except Exception as e:
         logger.error(f"Lỗi khi khởi tạo MongoDB: {str(e)}")
-    
-    return app
 
 app = create_app()
 

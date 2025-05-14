@@ -16,9 +16,6 @@ def view_favorites():
     # Only keep films that have valid data
     films = [film for film in films if film]
     
-    # Get top films
-    top_films = films[:5] if len(films) >= 5 else films
-    
     # Pagination
     items_per_page = 12
     total_films = len(films)
@@ -32,5 +29,32 @@ def view_favorites():
     return render_template('favorites.html', 
                           films=films_on_page,
                           total_pages=total_pages,
-                          current_page=page,
-                          top_films=top_films)
+                          current_page=page)
+
+# API routes for favorites
+@favorite_bp.route('/user/favorites/check/<film_id>')
+def check_favorite(film_id):
+    if 'user_id' not in session:
+        return jsonify({"isFavorite": False})
+    
+    user_id = session.get('user_id')
+    is_favorite = Favorite.is_favorite(user_id, film_id)
+    return jsonify({"isFavorite": is_favorite})
+
+@favorite_bp.route('/user/favorites/toggle/<film_id>', methods=['POST'])
+def toggle_favorite(film_id):
+    if 'user_id' not in session:
+        return jsonify({'error': 'Authentication required'}), 401
+    
+    user_id = session.get('user_id')
+    result, status_code = Favorite.toggle_favorite(user_id, film_id)
+    return jsonify(result), status_code
+
+@favorite_bp.route('/user/favorites')
+def get_favorites_json():
+    if 'user_id' not in session:
+        return jsonify([])
+    
+    user_id = session.get('user_id')
+    films = Favorite.get_user_favorite_films(user_id)
+    return jsonify(films)
