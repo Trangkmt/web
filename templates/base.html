@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PHIM NEU - {% block title %}{% endblock %}</title>
     
-    <!-- Preload fonts và critical resources -->
+    <!-- Tải trước font và tài nguyên quan trọng -->
     <link rel="preload" href="/static/fonts/fontawesome.woff2" as="font" type="font/woff2" crossorigin>
     
-    <!-- Critical CSS inline để tránh blocking render -->
+    <!-- CSS quan trọng inline để tránh blocking render -->
     <link rel="stylesheet" href="/static/css/critical.css">
     
     <!-- CSS không quan trọng được load sau -->
@@ -47,8 +47,8 @@
             
             // Chỉ ghi log thời gian nếu ở chế độ development
             if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                console.log('Time to DOM ready:', window.performance.getEntriesByName('time_to_dom_loaded')[0].duration.toFixed(2), 'ms');
-                console.log('Time to fully loaded:', window.performance.getEntriesByName('time_to_fully_loaded')[0].duration.toFixed(2), 'ms');
+                console.log('Thời gian tới khi DOM sẵn sàng:', window.performance.getEntriesByName('time_to_dom_loaded')[0].duration.toFixed(2), 'ms');
+                console.log('Thời gian tới khi tải hoàn tất:', window.performance.getEntriesByName('time_to_fully_loaded')[0].duration.toFixed(2), 'ms');
             }
         });
     </script>

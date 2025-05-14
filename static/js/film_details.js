@@ -1,90 +1,83 @@
 document.addEventListener('DOMContentLoaded', function() {
+    // Lấy tham chiếu các phần tử DOM
     const favoriteBtn = document.getElementById('favorite-btn');
     const heartIcon = document.getElementById('heart-icon');
     const favoriteText = document.getElementById('favorite-text');
     
-    // Modal elements
+    // Phần tử của các modal
     const loginModal = document.getElementById('login-modal');
     const registerModal = document.getElementById('register-modal');
     const detailsLoginBtn = document.getElementById('details-login-btn');
     const closeButtons = document.querySelectorAll('.close');
     
-    // Login form elements
+    // Form elements
     const loginForm = document.getElementById('login-form');
     const loginError = document.getElementById('login-error');
-    
-    // Register form elements
     const registerForm = document.getElementById('register-form');
     const registerError = document.getElementById('register-error');
-    
-    // Show/hide login/register modals
     const showRegisterLink = document.getElementById('show-register');
     const showLoginLink = document.getElementById('show-login');
     
-    // Check if user is logged in when page loads
+    // Kiểm tra đăng nhập
     const isUserLoggedIn = document.body.classList.contains('logged-in') || 
                           (document.cookie.indexOf('user_id') !== -1) ||
                           (typeof session !== 'undefined' && session.user_id);
     
-    // If user is logged in and there's a login button, convert it to favorites
+    // Chuyển đổi nút đăng nhập thành nút yêu thích nếu đã đăng nhập
     if (isUserLoggedIn && detailsLoginBtn) {
         convertLoginToFavoriteBtn();
     }
     
+    // Hiển thị thông báo với fallback khi AppNotification chưa load
     function showToast(message, type = 'success') {
-        // Sử dụng AppNotification nếu đã load - Kiểm tra module thông báo đã được tải chưa
         if (typeof AppNotification !== 'undefined') {
             AppNotification.show(message, type);
             return;
         }
         
-        // Tạo container cho thông báo nếu chưa có - Đảm bảo có nơi để chứa thông báo
-        const container = document.querySelector('.notification-container');
-        if (!container) {
-            const newContainer = document.createElement('div');
-            newContainer.className = 'notification-container';
-            document.body.appendChild(newContainer);
+        // Tạo container thông báo nếu chưa có
+        let toastContainer = document.querySelector('.notification-container');
+        if (!toastContainer) {
+            toastContainer = document.createElement('div');
+            toastContainer.className = 'notification-container';
+            document.body.appendChild(toastContainer);
         }
         
-        // Tạo thông báo mới - Tạo phần tử toast để hiển thị thông báo
+        // Tạo thông báo
         const toast = document.createElement('div');
-        toast.className = `toast ${type}`; // Áp dụng kiểu dáng theo loại thông báo
+        toast.className = `toast ${type}`;
         
-        // Tạo biểu tượng cho thông báo - Thêm icon trực quan
+        // Tạo icon và nội dung thông báo
         const icon = document.createElement('span');
         icon.className = 'toast-icon';
-        icon.innerHTML = type === 'success' ? '✓' : '⚠'; // Icon khác nhau cho success/error
+        icon.innerHTML = type === 'success' ? '✓' : '⚠';
         
-        // Tạo nội dung thông báo - Hiển thị nội dung tin nhắn
         const text = document.createElement('span');
         text.className = 'toast-message';
         text.textContent = message;
         
-        // Thêm các phần tử vào toast
+        // Gắn các phần tử
         toast.appendChild(icon);
         toast.appendChild(text);
-        
-        // Thêm toast vào container
-        const toastContainer = document.querySelector('.notification-container');
         toastContainer.appendChild(toast);
         
-        // Tự động ẩn toast sau 3 giây - Cơ chế tự động đóng thông báo
+        // Tự động ẩn sau 3 giây
         setTimeout(() => {
-            toast.style.opacity = '0'; // Hiệu ứng mờ dần
+            toast.style.opacity = '0';
             setTimeout(() => {
-                toastContainer.removeChild(toast); // Xóa khỏi DOM sau khi mờ dần
+                if (toastContainer.contains(toast)) {
+                    toastContainer.removeChild(toast);
+                }
             }, 500);
         }, 3000);
     }
     
     // Modal functionality
     if (detailsLoginBtn) {
-        detailsLoginBtn.addEventListener('click', function() {
-            loginModal.style.display = 'flex';
-        });
+        detailsLoginBtn.addEventListener('click', () => loginModal.style.display = 'flex');
     }
     
-    // Close modal when clicking the close button
+    // Đóng modal
     closeButtons.forEach(button => {
         button.addEventListener('click', () => {
             loginModal.style.display = 'none';
@@ -92,17 +85,13 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // Close modal when clicking outside the modal content
+    // Đóng modal khi click bên ngoài
     window.addEventListener('click', (event) => {
-        if (event.target === loginModal) {
-            loginModal.style.display = 'none';
-        }
-        if (registerModal && event.target === registerModal) {
-            registerModal.style.display = 'none';
-        }
+        if (event.target === loginModal) loginModal.style.display = 'none';
+        if (registerModal && event.target === registerModal) registerModal.style.display = 'none';
     });
     
-    // Switch between login and register modals
+    // Chuyển đổi giữa modal đăng nhập và đăng ký
     if (showRegisterLink) {
         showRegisterLink.addEventListener('click', function(e) {
             e.preventDefault();
@@ -119,76 +108,92 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Function to convert login button to favorites button
+    // Chuyển đổi nút đăng nhập thành nút yêu thích
     function convertLoginToFavoriteBtn() {
-        // Get the login button - it might have been re-rendered, so query it again
         const detailsLoginBtn = document.getElementById('details-login-btn');
         if (!detailsLoginBtn) return;
         
         const filmId = detailsLoginBtn.getAttribute('data-film-id') || 
                       window.location.pathname.split('/').pop();
         
-        // Create new favorite button to replace login button
+        // Tạo nút yêu thích mới
         const newFavBtn = document.createElement('button');
         newFavBtn.className = 'add-to-list-btn';
         newFavBtn.id = 'favorite-btn';
         newFavBtn.setAttribute('data-film-id', filmId);
         newFavBtn.innerHTML = '<i class="fas fa-heart" id="heart-icon"></i> <span id="favorite-text">THÊM VÀO YÊU THÍCH</span>';
         
-        // Replace the login button with the favorite button
+        // Thay thế nút đăng nhập
         detailsLoginBtn.parentNode.replaceChild(newFavBtn, detailsLoginBtn);
         
-        // Add event listener to the new favorite button
-        newFavBtn.addEventListener('click', function() {
-            fetch(`/user/favorites/toggle/${filmId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                const heartIcon = document.getElementById('heart-icon');
-                const favoriteText = document.getElementById('favorite-text');
-                
-                if (data.action === 'added') {
-                    newFavBtn.classList.add('favorited');
-                    heartIcon.style.color = '#fff';
-                    favoriteText.textContent = 'ĐÃ YÊU THÍCH';
-                    showToast('Đã thêm vào danh sách yêu thích');
-                } else if (data.action === 'removed') {
-                    newFavBtn.classList.remove('favorited');
-                    heartIcon.style.color = '';
-                    favoriteText.textContent = 'THÊM VÀO YÊU THÍCH';
-                    showToast('Đã xóa khỏi danh sách yêu thích');
-                } else {
-                    showToast('Có lỗi xảy ra', 'error');
-                }
-            })
-            .catch(error => {
-                console.error('Error toggling favorite:', error);
-                showToast('Có lỗi xảy ra khi cập nhật', 'error');
-            });
-        });
+        // Gắn sự kiện cho nút yêu thích
+        newFavBtn.addEventListener('click', toggleFavorite);
         
-        // Check if this film is already in favorites
+        // Kiểm tra trạng thái yêu thích
+        checkFavoriteStatus(filmId, newFavBtn);
+    }
+    
+    // Kiểm tra trạng thái yêu thích
+    function checkFavoriteStatus(filmId, btnElement) {
         fetch(`/user/favorites/check/${filmId}`)
             .then(response => response.json())
             .then(data => {
                 if (data.isFavorite) {
-                    newFavBtn.classList.add('favorited');
-                    document.getElementById('heart-icon').style.color = '#fff';
-                    document.getElementById('favorite-text').textContent = 'ĐÃ YÊU THÍCH';
+                    updateFavoriteButton(btnElement || favoriteBtn, true);
                 }
             })
             .catch(error => console.error('Error checking favorite status:', error));
     }
     
-    // Expose the function to the global scope
-    window.convertLoginToFavoriteBtn = convertLoginToFavoriteBtn;
+    // Cập nhật trạng thái nút yêu thích
+    function updateFavoriteButton(btn, isFavorite) {
+        if (!btn) return;
+        
+        const heartIcon = btn.querySelector('.fa-heart') || document.getElementById('heart-icon');
+        const favoriteText = btn.querySelector('span') || document.getElementById('favorite-text');
+        
+        if (isFavorite) {
+            btn.classList.add('favorited');
+            if (heartIcon) heartIcon.style.color = '#fff';
+            if (favoriteText) favoriteText.textContent = 'ĐÃ YÊU THÍCH';
+        } else {
+            btn.classList.remove('favorited');
+            if (heartIcon) heartIcon.style.color = '';
+            if (favoriteText) favoriteText.textContent = 'THÊM VÀO YÊU THÍCH';
+        }
+    }
     
-    // Function to convert favorites button to login button
+    // Chuyển đổi trạng thái yêu thích
+    function toggleFavorite() {
+        const btn = this;
+        const filmId = btn.getAttribute('data-film-id');
+        
+        fetch(`/user/favorites/toggle/${filmId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.action === 'added') {
+                updateFavoriteButton(btn, true);
+                showToast('Đã thêm vào danh sách yêu thích');
+            } else if (data.action === 'removed') {
+                updateFavoriteButton(btn, false);
+                showToast('Đã xóa khỏi danh sách yêu thích');
+            } else {
+                showToast('Có lỗi xảy ra', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error toggling favorite:', error);
+            showToast('Có lỗi xảy ra khi cập nhật', 'error');
+        });
+    }
+    
+    // Chuyển nút yêu thích thành nút đăng nhập
     function convertFavoriteToLoginBtn() {
         const favoriteBtn = document.getElementById('favorite-btn');
         if (!favoriteBtn) return;
@@ -196,72 +201,32 @@ document.addEventListener('DOMContentLoaded', function() {
         const filmId = favoriteBtn.getAttribute('data-film-id') || 
                       window.location.pathname.split('/').pop();
         
-        // Create new login button to replace favorites button
+        // Tạo nút đăng nhập mới
         const newLoginBtn = document.createElement('button');
         newLoginBtn.className = 'add-to-list-btn login-btn';
         newLoginBtn.id = 'details-login-btn';
         newLoginBtn.setAttribute('data-film-id', filmId);
         newLoginBtn.innerHTML = '<i class="fas fa-heart"></i> ĐĂNG NHẬP';
         
-        // Replace the favorites button with the login button
+        // Thay thế nút yêu thích
         favoriteBtn.parentNode.replaceChild(newLoginBtn, favoriteBtn);
         
-        // Add event listener to the new login button
-        newLoginBtn.addEventListener('click', function() {
-            loginModal.style.display = 'flex';
-        });
+        // Gắn sự kiện cho nút đăng nhập
+        newLoginBtn.addEventListener('click', () => loginModal.style.display = 'flex');
     }
     
-    // Make this function globally accessible
+    // Export funcs to global scope
+    window.convertLoginToFavoriteBtn = convertLoginToFavoriteBtn;
     window.convertFavoriteToLoginBtn = convertFavoriteToLoginBtn;
     
-    // Favorites functionality
+    // Xử lý nút yêu thích
     if (favoriteBtn) {
         const filmId = favoriteBtn.getAttribute('data-film-id');
-        
-        fetch(`/user/favorites/check/${filmId}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.isFavorite) {
-                    favoriteBtn.classList.add('favorited');
-                    heartIcon.style.color = '#fff';
-                    favoriteText.textContent = 'ĐÃ YÊU THÍCH';
-                }
-            })
-            .catch(error => console.error('Error checking favorite status:', error));
-        
-        favoriteBtn.addEventListener('click', function() {            
-            fetch(`/user/favorites/toggle/${filmId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.action === 'added') {
-                    favoriteBtn.classList.add('favorited');
-                    heartIcon.style.color = '#fff';
-                    favoriteText.textContent = 'ĐÃ YÊU THÍCH';
-                    showToast('Đã thêm vào danh sách yêu thích');
-                } else if (data.action === 'removed') {
-                    favoriteBtn.classList.remove('favorited');
-                    heartIcon.style.color = '';
-                    favoriteText.textContent = 'THÊM VÀO YÊU THÍCH';
-                    showToast('Đã xóa khỏi danh sách yêu thích');
-                } else {
-                    showToast('Có lỗi xảy ra', 'error');
-                }
-            })
-            .catch(error => {
-                console.error('Error toggling favorite:', error);
-                showToast('Có lỗi xảy ra khi cập nhật', 'error');
-            });
-        });
+        checkFavoriteStatus(filmId);
+        favoriteBtn.addEventListener('click', toggleFavorite);
     }
     
-    // Handle login form submission
+    // Xử lý form đăng nhập
     if (loginForm) {
         loginForm.addEventListener('submit', function(e) {
             e.preventDefault();
@@ -272,29 +237,21 @@ document.addEventListener('DOMContentLoaded', function() {
             fetch('/auth/login', {
                 method: 'POST',
                 body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
+                headers: {'X-Requested-With': 'XMLHttpRequest'}
             })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // Login successful
                     loginModal.style.display = 'none';
                     showToast('Đăng nhập thành công!');
-                    
-                    // Convert login button to favorite button
                     convertLoginToFavoriteBtn();
                     
-                    // Update user info display in navbar if needed
                     if (data.username && window.updateUIAfterLogin) {
                         window.updateUIAfterLogin(data.username);
                     }
                     
-                    // Add a class to the body to indicate logged in state
                     document.body.classList.add('logged-in');
                 } else {
-                    // Login failed
                     loginError.textContent = data.message || 'Đăng nhập thất bại!';
                     loginError.style.display = 'block';
                 }
@@ -307,7 +264,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Handle register form submission
+    // Xử lý form đăng ký
     if (registerForm) {
         registerForm.addEventListener('submit', function(e) {
             e.preventDefault();
@@ -326,26 +283,19 @@ document.addEventListener('DOMContentLoaded', function() {
             fetch('/auth/register', {
                 method: 'POST',
                 body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
+                headers: {'X-Requested-With': 'XMLHttpRequest'}
             })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // Registration successful
                     registerModal.style.display = 'none';
                     showToast('Đăng ký thành công!');
-                    
-                    // Convert login button to favorite button
                     convertLoginToFavoriteBtn();
                     
-                    // Update user info display in navbar if needed
                     if (data.username && window.updateUIAfterLogin) {
                         window.updateUIAfterLogin(data.username);
                     }
                 } else {
-                    // Registration failed
                     registerError.textContent = data.message || 'Đăng ký thất bại!';
                     registerError.style.display = 'block';
                 }

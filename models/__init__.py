@@ -52,7 +52,7 @@ try:
             # Build indexes if they don't exist
             # Create multikey indexes for faster search
             try:
-                films_collection.create_index([("title", "text"), ("description", "text")])
+                # Create regular indexes first
                 films_collection.create_index("id", unique=True)
                 films_collection.create_index("genre_ids")
                 films_collection.create_index("status")
@@ -64,6 +64,16 @@ try:
                 
                 favorites_collection.create_index([("user_id", 1), ("film_id", 1)], unique=True)
                 favorites_collection.create_index("user_id")
+                
+                # Check for existing text index before creating
+                index_info = films_collection.index_information()
+                text_index_exists = any('text' in str(v.get('key', [])) for v in index_info.values())
+                
+                if not text_index_exists:
+                    films_collection.create_index([("title", "text"), ("description", "text")])
+                    print("[THÔNG TIN] Text index đã được tạo")
+                else:
+                    print("[THÔNG TIN] Text index đã tồn tại - sử dụng index hiện có")
                 
                 print("[THÔNG TIN] Index MongoDB đã được tạo hoặc xác minh")
             except Exception as e:
@@ -196,24 +206,45 @@ def search_films(query, limit=20, skip=0):
     try:
         # Sử dụng text search cho truy vấn dài hơn 3 ký tự
         if len(query) > 3:
-            results = list(films_collection.find(
-                {"$text": {"$search": query}},
-                {"score": {"$meta": "textScore"}, "_id": 1, "id": 1, "title": 1, 
-                 "poster_path": 1, "rating": 1, "description": 1}
-            ).sort([("score", {"$meta": "textScore"})]).skip(skip).limit(limit))
+            try:
+                # Try text search first
+                results = list(films_collection.find(
+                    {"$text": {"$search": query}},
+                    {"score": {"$meta": "textScore"}, "_id": 1, "id": 1, "title": 1, 
+                     "poster_path": 1, "rating": 1, "description": 1}
+                ).sort([("score", {"$meta": "textScore"})]).skip(skip).limit(limit))
+                
+                # If no results from text search, fall back to regex
+                if not results:
+                    print(f"Text search returned no results, falling back to regex for: '{query}'")
+                    return search_with_regex(query, limit, skip)
+                    
+                return [serialize_id(film) for film in results]
+            except Exception as text_error:
+                # If text search fails for any reason, fall back to regex
+                print(f"Text search failed, error: {str(text_error)}. Falling back to regex for: '{query}'")
+                return search_with_regex(query, limit, skip)
         else:
-            # Sử dụng regex cho truy vấn ngắn
-            results = list(films_collection.find(
-                {"$or": [
-                    {"title": {"$regex": query, "$options": "i"}},
-                    {"description": {"$regex": query, "$options": "i"}}
-                ]},
-                {"_id": 1, "id": 1, "title": 1, "poster_path": 1, "rating": 1, "description": 1}
-            ).skip(skip).limit(limit))
+            # Always use regex for short queries
+            return search_with_regex(query, limit, skip)
+    except Exception as e:
+        print(f"Error searching films: {str(e)}")
+        return []
+
+def search_with_regex(query, limit=20, skip=0):
+    """Fallback search using regex instead of text search"""
+    try:
+        results = list(films_collection.find(
+            {"$or": [
+                {"title": {"$regex": query, "$options": "i"}},
+                {"description": {"$regex": query, "$options": "i"}}
+            ]},
+            {"_id": 1, "id": 1, "title": 1, "poster_path": 1, "rating": 1, "description": 1}
+        ).skip(skip).limit(limit))
         
         return [serialize_id(film) for film in results]
     except Exception as e:
-        print(f"Error searching films: {str(e)}")
+        print(f"Error in regex search: {str(e)}")
         return []
 
 # Import models

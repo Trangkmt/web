@@ -1,6 +1,6 @@
 const API_URL = '/admin/films/api';
 
-// DOM Elements
+// Phần tử DOM
 const filmTable = document.getElementById('filmTable');
 const filmModal = document.getElementById('filmModal');
 const deleteModal = document.getElementById('deleteModal');
@@ -19,13 +19,13 @@ const filterBtn = document.getElementById('filterBtn');
 const pagination = document.getElementById('pagination');
 const genreFilterInput = document.querySelector('.genre-filter-input');
 
-// Pagination settings
+// Cài đặt phân trang
 const FILMS_PER_PAGE = 6;
 let currentPage = 1;
 let totalFilms = 0;
 let filteredFilms = [];
 
-// Remove old notification container and loading overlay
+// Xóa container thông báo cũ và lớp phủ loading
 if (document.getElementById('notification-container')) {
     document.getElementById('notification-container').remove();
 }
@@ -33,17 +33,17 @@ if (document.getElementById('loading-overlay')) {
     document.getElementById('loading-overlay').remove();
 }
 
-// Function to show loading overlay
+// Hàm hiển thị lớp phủ loading
 function showLoading() {
     AppNotification.showLoading('Đang tải dữ liệu...');
 }
 
-// Function to hide loading overlay
+// Hàm ẩn lớp phủ loading
 function hideLoading() {
     AppNotification.hideLoading();
 }
 
-// Function to show notification
+// Hàm hiển thị thông báo
 function showNotification(message, type = 'success') {
     AppNotification.show(message, type);
 }
@@ -80,7 +80,7 @@ function initGenreFilterDropdown() {
     });
 }
 
-// Update selected genres display
+// Cập nhật hiển thị thể loại đã chọn
 function updateSelectedGenresDisplay() {
     const selectedGenres = Array.from(document.querySelectorAll('input[name="filterCategories"]:checked'));
     const genreFilterInput = document.querySelector('.genre-filter-input');
@@ -94,30 +94,30 @@ function updateSelectedGenresDisplay() {
     }
 }
 
-// Initialize genre selector dropdown
+// Khởi tạo dropdown bộ chọn thể loại
 function initGenreSelectDropdown() {
     const genreSelectInput = document.getElementById('genreSelectInput');
     const genreCheckboxes = document.getElementById('genreCheckboxes');
     
     if (!genreSelectInput || !genreCheckboxes) return;
     
-    // Toggle dropdown when clicking on the input
+    // Chuyển đổi dropdown khi nhấp vào input
     genreSelectInput.addEventListener('click', (e) => {
         e.stopPropagation();
         genreCheckboxes.classList.toggle('active');
     });
     
-    // Prevent dropdown from closing when clicking inside it
+    // Ngăn dropdown đóng khi nhấp vào bên trong
     genreCheckboxes.addEventListener('click', (e) => {
         e.stopPropagation();
     });
     
-    // Close dropdown when clicking outside
+    // Đóng dropdown khi nhấp vào bên ngoài
     document.addEventListener('click', () => {
         genreCheckboxes.classList.remove('active');
     });
     
-    // Update selected genres display when checkboxes change
+    // Cập nhật hiển thị thể loại đã chọn khi checkbox thay đổi
     const checkboxes = document.querySelectorAll('input[name="filmCategories"]');
     checkboxes.forEach(checkbox => {
         checkbox.addEventListener('change', () => {
@@ -126,7 +126,7 @@ function initGenreSelectDropdown() {
     });
 }
 
-// Update genre display based on selected checkboxes
+// Cập nhật hiển thị thể loại dựa trên checkbox được chọn
 function updateSelectedGenresDisplay() {
     const genreSelectInput = document.getElementById('genreSelectInput');
     if (!genreSelectInput) return;

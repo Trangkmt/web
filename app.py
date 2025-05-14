@@ -110,26 +110,32 @@ except ImportError:
                 
                 logging.info("Regular indexes created successfully")
                 
-                # Create text index separately with explicit weights and error handling
+                # Check for existing text index with improved handling
                 try:
-                    # First, check if the text index already exists
+                    # First, check if any text index already exists
                     index_info = db.films.index_information()
-                    text_index_exists = any('text' in v.get('key', []) for v in index_info.values())
+                    # Ensure we thoroughly check for text index existence
+                    text_index_exists = False
+                    for index_name, index_info in index_info.items():
+                        if 'weights' in index_info:  # Text indexes have weights
+                            text_index_exists = True
+                            logging.info(f"Existing text index found: {index_name}")
+                            break
                     
                     if not text_index_exists:
-                        # Create the text index with explicit weights
+                        # Only create if no text index exists
                         db.films.create_index(
                             [("title", "text"), ("description", "text")],
-                            weights={"title": 10, "description": 5},
-                            default_language="english",
-                            name="film_text_search"
+                            default_language="english"  # Don't specify custom weights or name
                         )
                         logging.info("Text search index created successfully")
                     else:
-                        logging.info("Text search index already exists")
+                        # Text index already exists, don't try to recreate with different options
+                        logging.info("Text search index already exists - using existing index")
                 except Exception as text_index_error:
-                    logging.error(f"Failed to create text search index: {str(text_index_error)}")
-                    # Continue execution even if text index creation fails
+                    # More specific error message for diagnosis
+                    logging.error(f"Failed to handle text search index: {str(text_index_error)}")
+                    # Continue execution even if text index handling fails
                 
                 return True
             except Exception as e:
@@ -140,18 +146,7 @@ except ImportError:
             return False
     
     def migrate_users_without_id(db):
-        """Gán ID tuần tự cho người dùng không có ID
-        
-        Chức năng:
-        - Tìm người dùng không có trường ID
-        - Gán ID tuần tự bắt đầu từ ID cao nhất hiện có
-        
-        Args:
-            db: Đối tượng cơ sở dữ liệu MongoDB
-            
-        Returns:
-            bool: True nếu thành công, False nếu thất bại
-        """
+        """Gán ID tuần tự cho người dùng không có ID"""
         try:
             # Tìm người dùng không có trường ID
             users_without_id = list(db.users.find({"id": {"$exists": False}}))
@@ -160,13 +155,11 @@ except ImportError:
                 logging.info("Không tìm thấy người dùng nào không có ID")
                 return True
                 
-            logging.info(f"Tìm thấy {len(users_without_id)} người dùng không có ID")
-            
-            # Tìm ID cao nhất hiện có
+            # Tìm ID cao nhất hiện có và cập nhật người dùng
             highest_user = db.users.find_one(sort=[("id", -1)])
             next_id = highest_user.get("id", 0) + 1 if highest_user else 1
             
-            # Cập nhật người dùng
+            # Bulk update để cải thiện hiệu suất
             for user in users_without_id:
                 db.users.update_one(
                     {"_id": user["_id"]}, 
@@ -174,7 +167,7 @@ except ImportError:
                 )
                 next_id += 1
                 
-            logging.info(f"Cập nhật {len(users_without_id)} người dùng với ID tuần tự")
+            logging.info(f"Đã cập nhật {len(users_without_id)} người dùng với ID tuần tự")
             return True
         except Exception as e:
             logging.error(f"Lỗi khi di chuyển người dùng không có ID: {str(e)}")

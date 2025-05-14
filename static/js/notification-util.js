@@ -46,7 +46,7 @@ const AppNotification = {
      * Show a loading indicator - Hiển thị trạng thái đang tải
      * @param {string} message - Optional message to display with the loading indicator
      */
-    showLoading: function(message = 'Loading...') {
+    showLoading: function(message = 'Đang tải...') {
         // Xóa bỏ overlay tải hiện có để tránh trùng lặp
         this.hideLoading();
         
@@ -71,7 +71,7 @@ const AppNotification = {
      * @param {Function} retryCallback - Function to call when retry is clicked
      */
     showErrorWithRetry: function(message, retryCallback) {
-        this._clearExistingNotifications(); // Xóa thông báo cũ
+        this._clearExistingNotifications();
         
         // Tạo thông báo lỗi với nút thử lại
         const toast = this._createErrorWithRetryToast(message, retryCallback);
@@ -112,20 +112,20 @@ const AppNotification = {
             overlay.style.zIndex = '9999';
         }
         
+        // Tạo container chứa spinner và message
+        const spinnerContainer = document.createElement('div');
+        spinnerContainer.style.textAlign = 'center';
+        
         // Tạo phần tử spinner quay tròn
         const spinner = document.createElement('div');
         spinner.className = 'spinner';
+        spinnerContainer.appendChild(spinner);
         
-        // Tạo phần tử hiển thị thông báo dưới spinner
+        // Tạo phần tử hiển thị thông báo
         const messageEl = document.createElement('p');
         messageEl.textContent = message;
         messageEl.style.marginTop = '15px';
         messageEl.style.color = 'white';
-        
-        // Gom các phần tử lại với nhau
-        const spinnerContainer = document.createElement('div');
-        spinnerContainer.style.textAlign = 'center';
-        spinnerContainer.appendChild(spinner);
         spinnerContainer.appendChild(messageEl);
         
         overlay.appendChild(spinnerContainer);
@@ -144,6 +144,7 @@ const AppNotification = {
         const messageElement = document.createElement('div');
         messageElement.innerText = message;
         messageElement.style.marginBottom = '10px';
+        toast.appendChild(messageElement);
         
         const retryButton = document.createElement('button');
         retryButton.innerText = 'Thử lại';
@@ -167,9 +168,7 @@ const AppNotification = {
             }, 300);
         });
         
-        toast.appendChild(messageElement);
         toast.appendChild(retryButton);
-        
         return toast;
     }
 };

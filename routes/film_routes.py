@@ -351,7 +351,7 @@ def register_film_routes(app):
         client, db = get_db_connection()
         if db is None:
             return render_template('search_result.html', results=[], suggested_films=[],
-                                query=query, current_page=1, total_pages=1, top_films=[])
+                                  query=query, current_page=1, total_pages=1, top_films=[])
         
         try:
             # Calculate skip value for pagination
@@ -363,41 +363,58 @@ def register_film_routes(app):
                 "release_year": 1, "description": 1, "genre_ids": 1
             }
             
-            # Use text search if query is longer than 3 characters
-            if len(query) > 3:
-                # Use MongoDB text search when appropriate (faster for longer phrases)
-                search_query = {"$text": {"$search": query}}
-                sort_criteria = [("score", {"$meta": "textScore"})]
-                projection["score"] = {"$meta": "textScore"}
-                
-                results = list(db.films.find(
-                    search_query, 
-                    projection
-                ).sort(sort_criteria).skip(skip).limit(per_page))
-                
-                # Get total count for pagination
-                total_results = db.films.count_documents(search_query)
-            else:
-                # Use regex for short queries (more flexible for single words)
-                search_query = {
-                    "$or": [
-                        {"title": {"$regex": query, "$options": "i"}},
-                        {"description": {"$regex": query, "$options": "i"}}
-                    ]
-                }
-                
-                results = list(db.films.find(
-                    search_query, 
-                    projection
-                ).skip(skip).limit(per_page))
-                
-                # Get total count for pagination
-                total_results = db.films.count_documents(search_query)
+            # Always use regex search - more reliable than text search
+            logger.info(f"Performing regex search for query: '{query}'")
+            return use_regex_search(db, query, projection, skip, per_page, page)
             
-            # Serialize ObjectIds
-            results = [serialize_id(result) for result in results]
+        except Exception as e:
+            logger.error(f"Error searching for '{query}': {str(e)}")
+            # Try to return empty results with suggested films as fallback
+            try:
+                # Get top films for sidebar
+                top_films = get_top_films(db.films, 5)
+                
+                # Get some random films as suggestions
+                suggested_films = []
+                try:
+                    suggested_films = list(db.films.aggregate([
+                        {"$sample": {"size": 8}},
+                        {"$project": projection}
+                    ]))
+                    suggested_films = [serialize_id(film) for film in suggested_films]
+                except Exception:
+                    pass
+                
+                return render_template('search_result.html',
+                                    results=[],
+                                    suggested_films=suggested_films,
+                                    top_films=top_films,
+                                    query=query,
+                                    current_page=1,
+                                    total_pages=1)
+            except:
+                return render_template('error.html', message="Error performing search")
+
+    def use_regex_search(db, query, projection, skip, per_page, page):
+        """Search using regex - reliable method that works for all query lengths"""
+        try:
+            # Create regex search query - this is more reliable than text search
+            search_query = {
+                "$or": [
+                    {"title": {"$regex": query, "$options": "i"}},
+                    {"description": {"$regex": query, "$options": "i"}}
+                ]
+            }
             
-            total_pages = (total_results + per_page - 1) // per_page  # Ceiling division
+            # Perform the search
+            results = list(db.films.find(
+                search_query, 
+                projection
+            ).skip(skip).limit(per_page))
+            
+            # Get total count for pagination
+            total_results = db.films.count_documents(search_query)
+            total_pages = max(1, (total_results + per_page - 1) // per_page)  # Ensure at least 1 page
             
             # Get suggested films - use aggregation for random selection
             suggested_films = list(db.films.aggregate([
@@ -406,19 +423,30 @@ def register_film_routes(app):
             ]))
             
             # Serialize ObjectIds
+            results = [serialize_id(result) for result in results]
             suggested_films = [serialize_id(film) for film in suggested_films]
             
-            # Get top films for sidebar (use cached function)
+            # Get top films for sidebar
             top_films = get_top_films(db.films, 5)
             
-            return render_template('search_result.html',
-                                results=results,
-                                suggested_films=suggested_films,
-                                top_films=top_films,
-                                query=query,
-                                current_page=page,
-                                total_pages=total_pages)
+            logger.info(f"Found {len(results)} results for '{query}' using regex search")
             
+            return render_template('search_result.html',
+                                  results=results,
+                                  suggested_films=suggested_films,
+                                  top_films=top_films,
+                                  query=query,
+                                  current_page=page,
+                                  total_pages=total_pages)
         except Exception as e:
-            logger.error(f"Error searching for '{query}': {str(e)}")
-            return render_template('error.html', message="Error performing search")
+            logger.error(f"Error in regex search: {str(e)}")
+            
+            # Return empty results as fallback
+            top_films = get_top_films(db.films, 5)
+            return render_template('search_result.html',
+                                  results=[],
+                                  suggested_films=[],
+                                  top_films=top_films,
+                                  query=query,
+                                  current_page=1,
+                                  total_pages=1)

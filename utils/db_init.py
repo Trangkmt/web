@@ -16,7 +16,16 @@ def init_mongo_indexes():
         # Create all indexes in a single block
         # Film indexes
         db.films.create_index("id", unique=True)
-        db.films.create_index([("title", 1), ("title", "text"), ("description", "text")])
+        
+        # Check if text index exists before creating
+        index_info = db.films.index_information()
+        text_index_exists = any('text' in str(v.get('key', [])) for v in index_info.values())
+        
+        if not text_index_exists:
+            db.films.create_index([("title", "text"), ("description", "text")])
+            logger.info("Text search index created successfully")
+        else:
+            logger.info("Text search index already exists - using existing index")
         
         # Genre indexes - combined
         db.genres.create_index([("slug", 1), ("id", 1), ("name", 1)], 

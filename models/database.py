@@ -33,13 +33,20 @@ def init_database(app):
             except Exception as e:
                 print(f"Lưu ý: Index id của phim có thể đã tồn tại: {str(e)}")
                 
-            # Index tìm kiếm văn bản - sử dụng trọng số mặc định để tránh xung đột
+            # Index tìm kiếm văn bản - kiểm tra trước khi tạo
             try:
-                films_collection.create_index([("title", "text"), ("description", "text")],
-                                           default_language="english")
-                print("✅ Index tìm kiếm văn bản của phim đã được tạo thành công")
+                # Kiểm tra xem index text đã tồn tại chưa
+                index_info = films_collection.index_information()
+                text_index_exists = any('text' in str(v.get('key', [])) for v in index_info.values())
+                
+                if not text_index_exists:
+                    films_collection.create_index([("title", "text"), ("description", "text")],
+                                               default_language="english")
+                    print("✅ Index tìm kiếm văn bản của phim đã được tạo thành công")
+                else:
+                    print("✅ Index tìm kiếm văn bản đã tồn tại - sử dụng index hiện có")
             except Exception as e:
-                print(f"Lưu ý: Index tìm kiếm văn bản của phim đã tồn tại: {str(e)}")
+                print(f"Lưu ý: Lỗi khi xử lý index tìm kiếm văn bản: {str(e)}")
             
             # Genre indexes - kết hợp
             try:
