@@ -164,7 +164,7 @@ function displayFilms(films) {
             </td>
             <td>${genres}</td>
             <td>${film.episode_count || 'N/A'}</td>
-            <td>${new Date(film.release_date).getFullYear()}</td>
+            <td>${new Date(film.release_year).getFullYear()}</td>
             <td><span class="status-badge ${film.status === 'single' ? 'status-single' : 'status-series'}">${film.status === 'single' ? 'Phim lẻ' : 'Phim bộ'}</span></td>
             <td class="action-buttons">
                 <button class="action-btn edit-btn" data-id="${film.id}"><i class="fas fa-edit"></i></button>
@@ -349,11 +349,11 @@ async function openEditModal(filmId) {
             checkbox.checked = film.genre_ids && film.genre_ids.includes(parseInt(checkbox.value));
         });
         document.getElementById('filmEpisodes').value = film.episode_count || '';
-        document.getElementById('filmReleaseDate').value = film.release_date || '';
+        document.getElementById('filmReleaseDate').value = film.release_year || '';
         document.getElementById('filmStatus').value = film.status || 'single';
         document.getElementById('filmPosterUrl').value = film.poster_path || '';
         document.getElementById('filmSourceFilm').value = film.source_film || '';
-        document.getElementById('filmOverview').value = film.overview || '';
+        document.getElementById('filmDesciption').value = film.description|| '';
         
         // Update genre display
         updateSelectedGenresDisplay();
@@ -406,8 +406,8 @@ async function saveFilm(event) {
         
         const filmId = document.getElementById('filmId').value;
         const title = document.getElementById('filmTitle').value;
-        const overview = document.getElementById('filmOverview').value;
-        const release_date = document.getElementById('filmReleaseDate').value;
+        const description = document.getElementById('filmDescription').value;
+        const release_year = document.getElementById('filmReleaseDate').value;
         const episode_count = parseInt(document.getElementById('filmEpisodes').value) || 1;
         const status = document.getElementById('filmStatus').value;
         const poster_path = document.getElementById('filmPosterUrl').value || '/static/images/placeholder.jpg';
@@ -419,8 +419,8 @@ async function saveFilm(event) {
 
         const filmData = {
             title,
-            overview,
-            release_date,
+            description,
+            release_year,
             episode_count,
             poster_path,
             source_film,
