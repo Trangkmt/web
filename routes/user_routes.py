@@ -8,6 +8,9 @@ from werkzeug.security import check_password_hash
 # Import Favorite model từ module favorite
 from models.favorite import Favorite
 
+# Import utils for cleaner authentication handling
+from utils.auth_utils import login_required, get_user_data
+
 # Tạo Blueprint
 user_bp = Blueprint('user', __name__, url_prefix='/user')
 
@@ -36,7 +39,7 @@ def get_db():
         return None, None
 
 # Decorator xác thực
-def login_required(f):
+def login_required_api(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
@@ -58,36 +61,21 @@ def find_user_by_id(db, user_id):
     except:
         return None
 
-# Trang hồ sơ người dùng
+# Trang hồ sơ người dùng - Improved implementation
 @user_bp.route('/account')
 def profile():
-    if 'user_id' not in session:
-        flash('Vui lòng đăng nhập để xem trang này', 'error')
-        return redirect(url_for('auth.login'))
+    login_check = login_required()
+    if login_check:
+        return login_check
     
-    client, db = get_db()
-    favorites = []
+    user_id = session.get('user_id')
+    user_data = get_user_data(user_id)
     
-    try:
-        user_id = session.get('user_id')
-        
-        # Sử dụng Favorite model đã import
-        favorites_data = Favorite.get_user_favorites(user_id)
-        films = Favorite.get_user_favorite_films(user_id)
-        
-        if films:
-            favorites = films
-    except Exception as e:
-        print(f"Lỗi khi lấy danh sách yêu thích: {str(e)}")
-    finally:
-        if client:
-            client.close()
-    
-    return render_template('account.html', favorites=favorites)
+    return render_template('account.html', user=user_data)
 
 # API routes cho hồ sơ & cập nhật người dùng
 @user_bp.route('/profile/data')
-@login_required
+@login_required_api
 def profile_data():
     """Lấy dữ liệu hồ sơ người dùng dạng JSON"""
     client, db = get_db()
@@ -135,7 +123,7 @@ def profile_data():
 
 # Cập nhật hồ sơ người dùng
 @user_bp.route('/account/update', methods=['POST'])
-@login_required
+@login_required_api
 def update_profile():
     client, db = get_db()
     if db is None:
@@ -183,7 +171,7 @@ def update_profile():
 
 # Đổi mật khẩu
 @user_bp.route('/password/change', methods=['POST'])
-@login_required
+@login_required_api
 def change_password():
     client, db = get_db()
     if db is None:
@@ -231,23 +219,54 @@ def change_password():
         if client:
             client.close()
 
-# Quản lý phim yêu thích
+# ===== FAVORITE ROUTES =====
+
+# Trang xem danh sách phim yêu thích
+@user_bp.route('/films/favorites')
+def view_favorites():
+    login_check = login_required()
+    if login_check:
+        return login_check
+    
+    user_id = session.get('user_id')
+    
+    # Get favorite films using the Favorite model
+    films = Favorite.get_user_favorite_films(user_id)
+    
+    # Only keep films that have valid data
+    films = [film for film in films if film]
+    
+    # Pagination
+    items_per_page = 12
+    total_films = len(films)
+    total_pages = (total_films // items_per_page) + (1 if total_films % items_per_page != 0 else 0)
+    
+    page = request.args.get('page', 1, type=int)
+    start = (page - 1) * items_per_page
+    end = start + items_per_page
+    films_on_page = films[start:end]
+    
+    return render_template('favorites.html', 
+                          films=films_on_page,
+                          total_pages=total_pages,
+                          current_page=page)
+
 @user_bp.route('/favorites')
-@login_required
+@login_required_api
 def get_favorites():
     user_id = session.get('user_id')
     films = Favorite.get_user_favorite_films(user_id)
     return jsonify(films)
 
 @user_bp.route('/favorites/check/<film_id>')
-@login_required
+@login_required_api
 def check_favorite(film_id):
     user_id = session.get('user_id')
     is_favorite = Favorite.is_favorite(user_id, film_id)
     return jsonify({"isFavorite": is_favorite})
 
 @user_bp.route('/favorites/toggle/<film_id>', methods=['POST'])
-@login_required
+@login_required_api
 def toggle_favorite(film_id):
     user_id = session.get('user_id')
     result, status_code = Favorite.toggle_favorite(user_id, film_id)
@@ -256,4 +275,38 @@ def toggle_favorite(film_id):
 def register_user_routes(app):
     """Đăng ký routes người dùng vào ứng dụng Flask"""
     app.register_blueprint(user_bp)
+    
+    # Register the main route (non-prefixed version)
+    @app.route('/account')
+    def account():
+        return profile()
+        
+    @app.route('/films/favorites')
+    def films_favorites():
+        return view_favorites()
+        
+    # Register root API paths for backward compatibility
+    @app.route('/user/favorites/check/<film_id>')
+    def check_favorite_root(film_id):
+        if 'user_id' not in session:
+            return jsonify({"isFavorite": False})
+        user_id = session.get('user_id')
+        is_favorite = Favorite.is_favorite(user_id, film_id)
+        return jsonify({"isFavorite": is_favorite})
+        
+    @app.route('/user/favorites/toggle/<film_id>', methods=['POST'])
+    def toggle_favorite_root(film_id):
+        if 'user_id' not in session:
+            return jsonify({'error': 'Authentication required'}), 401
+        user_id = session.get('user_id')
+        result, status_code = Favorite.toggle_favorite(user_id, film_id)
+        return jsonify(result), status_code
+        
+    @app.route('/user/favorites')
+    def get_favorites_root():
+        if 'user_id' not in session:
+            return jsonify([])
+        user_id = session.get('user_id')
+        films = Favorite.get_user_favorite_films(user_id)
+        return jsonify(films)
 
