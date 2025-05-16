@@ -21,7 +21,7 @@
                 <div class="film-info">
                     <p><span class="label">Thể loại:</span> {% if film and film.genres %}{{ film.genres | join(', ') }}{% else %}Không có{% endif %}</p>
                     <p><span class="label">Năm phát hành:</span> {% if film and film.release_year %}{{ film.release_year }}{% else %}N/A{% endif %}</p>
-                    <p><span class="label">Thời lượng:</span> {% if film and film.length %}{{ film.length }} phút{% else %}N/A{% endif %}</p>
+                    <p><span class="label">Thời lượng:</span> {% if film and film.episode_count is defined and film.episode_count %}{{ film.episode_count }} tập{% else %}N/A{% endif %}</p>
                     <p><span class="label">Điểm đánh giá:</span> {% if film and film.rating %}{{ film.rating }}/10{% else %}N/A{% endif %}</p>
                 </div>
                 <div class="featured-buttons">

@@ -58,7 +58,7 @@ class Film:
         default_projection = {
             "_id": 1, "id": 1, "title": 1, "poster_path": 1, 
             "description": 1, "rating": 1, "genre_ids": 1, 
-            "release_year": 1, "video_url": 1, "length": 1
+            "release_year": 1, "video_url": 1, "episode_count": 1
         }
         
         projection = projection or default_projection

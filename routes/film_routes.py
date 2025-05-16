@@ -81,7 +81,7 @@ def register_film_routes(app):
         try:
             # Use projection to limit fields for better performance
             projection = {
-                "id": 1, "title": 1, "poster_path": 1, "rating": 1, 
+                "id": 1, "title": 1, "poster_path": 1, "rating": 1,
                 "release_year": 1, "description": 1, "genre_ids": 1
             }
             
@@ -123,11 +123,20 @@ def register_film_routes(app):
             return render_template('film_details.html', film=None, related_films=[], top_films=[], user_id=user_id)
 
         try:
-            # Get the film by ID with optimized function
-            film = find_film_by_id(db.films, film_id)
+            # Get the film by ID with optimized function - ensure episode_count is included
+            film = find_film_by_id(db.films, film_id, projection={
+                "id": 1, "title": 1, "poster_path": 1, "rating": 1,
+                "release_year": 1, "description": 1, "genre_ids": 1,
+                "episode_count": 1, "source_film": 1, "views": 1
+            })
             
             if not film:
                 return render_template('error.html', message="Film not found"), 404
+            
+            # Check if episode_count is missing and set a default if needed
+            if "episode_count" not in film or film["episode_count"] is None:
+                film["episode_count"] = 1
+                print(f"Warning: Film {film_id} missing episode_count, setting default value 1")
             
             # Serialize film ObjectId
             film = serialize_id(film)

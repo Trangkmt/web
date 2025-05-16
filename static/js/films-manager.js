@@ -408,7 +408,11 @@ async function saveFilm(event) {
         const title = document.getElementById('filmTitle').value;
         const description = document.getElementById('filmDescription').value;
         const release_year = document.getElementById('filmReleaseYear').value;
-        const episode_count = parseInt(document.getElementById('filmEpisodes').value) || 1;
+        
+        // Make sure episode_count is properly converted to an integer or defaulted to 1
+        const episodesValue = document.getElementById('filmEpisodes').value;
+        const episode_count = episodesValue && !isNaN(parseInt(episodesValue)) ? parseInt(episodesValue) : 1;
+        
         const status = document.getElementById('filmStatus').value;
         const poster_path = document.getElementById('filmPosterUrl').value || '/static/images/placeholder.jpg';
         const source_film = document.getElementById('filmSourceFilm').value || '';
@@ -421,12 +425,14 @@ async function saveFilm(event) {
             title,
             description,
             release_year,
-            episode_count,
+            episode_count, // Ensure this field is correctly named
             poster_path,
             source_film,
             genre_ids,
             status
         };
+
+        console.log("Saving film data:", filmData); // Add this debug log
 
         const method = filmId ? 'PUT' : 'POST';
         const url = filmId ? `${API_URL}/films/${filmId}` : `${API_URL}/films`;
